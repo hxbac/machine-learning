@@ -1,0 +1,100 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+#------------------------
+import numpy as np
+import glob
+from PIL import Image
+from keras import models
+from keras import layers
+
+#read the train images
+train_dir = 'hws-train/'
+num_classes = 79
+X_train = []
+y_train = []
+for i in range(1,num_classes + 1):
+    filenames = train_dir  + str(i) + '-*.png'
+    for filename in glob.glob(filenames):
+        y_train.append(i-1)
+        image = Image.open(filename)
+        X_train.append(np.array(image))
+
+X_train = np.array(X_train)
+y_train = np.array(y_train)
+
+#read the test images
+test_dir = 'hws-test/'
+X_test = []
+y_test = []
+for i in range(1,num_classes + 1):
+    filenames = test_dir  + str(i) + '-*.png'
+    for filename in glob.glob(filenames):
+        y_test.append(i-1)
+        image = Image.open(filename)
+        X_test.append(np.array(image))
+
+X_test = np.array(X_test)
+y_test = np.array(y_test)
+
+#create random rows
+r = np.arange(0,len(y_train))
+np.random.shuffle(r)
+X_train = X_train[r,:]
+y_train = y_train[r]
+
+#get the image parameters
+num_train_samples = X_train.shape[0]
+num_test_samples = X_test.shape[0]
+height = X_train.shape[1]
+width = X_train.shape[2]
+
+#normalize the data samples
+X_train = X_train.reshape((num_train_samples,height*width))
+X_train = X_train.astype('float32')/255
+X_test = X_test.reshape((num_test_samples,height*width))
+X_test = X_test.astype('float32')/255
+
+#encode the targers
+from keras.utils import to_categorical
+y_train = to_categorical(y_train)
+y_test = to_categorical(y_test)
+
+#create samples for simple hold-out validation
+X_train_val = X_train[:200]
+y_train_val = y_train[:200]
+X_train_par = X_train[200:]
+y_train_par = y_train[200:]
+
+#create a network model
+model = models.Sequential()
+model.add(layers.Dense(128,activation='relu',input_shape =(height*width,)))
+#model.add(layers.Dropout(0.5))
+model.add(layers.Dense(64,activation='relu'))
+model.add(layers.Dense(num_classes,activation='softmax'))
+model.compile(optimizer='rmsprop',loss='categorical_crossentropy',metrics=['accuracy'])
+
+#train the network
+num_epochs = 100
+history = model.fit(X_train_par, y_train_par, epochs = num_epochs, batch_size=8, verbose = 2, validation_data=(X_train_val, y_train_val))
+
+#evaluate the trained netwotk
+test_loss, test_acc = model.evaluate(X_test, y_test)
+print('test_acc:', test_acc)
+
+#plot training loss and validation loss
+import matplotlib.pyplot as plt
+plt.figure(1)
+plt.plot(history.history['loss'],'b',label = 'Training loss')
+plt.plot(history.history['val_loss'],'r',label = 'Validation loss')
+plt.ylabel('Loss')
+plt.xlabel('Epochs')
+plt.legend(loc = 'upper left')
+
+#plot training loss and validation loss
+plt.figure(2)
+plt.plot(history.history['accuracy'],'b',label = 'Training accuracy')
+plt.plot(history.history['val_accuracy'],'r',label = 'Validation accuracy')
+plt.ylabel('Loss')
+plt.xlabel('Epochs')
+plt.legend(loc = 'upper left')
+plt.show()
